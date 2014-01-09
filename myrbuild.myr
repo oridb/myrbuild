@@ -2,6 +2,8 @@ use std
 use regex
 use bio
 
+use "config.use"
+
 var opt_mc = "6m"
 var opt_muse = "muse"
 var opt_as = "as"
@@ -40,7 +42,6 @@ const usage = {prog
 const main = {args
 	var optctx
 	var utsname
-	var target
 
 	optctx = std.optinit("hb:l:s:I:C:A:M:L:R:", args)
 	while !std.optdone(optctx)
@@ -61,25 +62,19 @@ const main = {args
 	;;
 
 	if std.uname(&utsname) == 0
-		opt_sysname = std.sldup(utsname.system[:])
+		opt_sysname = sysname(utsname.system[:])
 	;;
 
 	if opt_libname.len > 0 && opt_binname.len > 0
 		std.fatal(1, "error: both lib %s and bin %s targets specified\n", \
 				opt_libname, opt_binname)
-	elif opt_libname.len > 0
-		target = opt_libname
-	elif opt_binname.len > 0
-		target = opt_binname
-	else
-		target = "a.out"
 	;;
 
 	libgraph = std.mkht(std.strhash, std.streq)
 	compiled = std.mkht(std.strhash, std.streq)
 	loopdetect = std.mkht(std.strhash, std.streq)
 	sourcemap = std.mkht(std.strhash, std.streq)
-	match regex.compile("^\\s*use\\s+((\"(\\S+)\")|(\\S+))")
+	match regex.compile("^\\s*use\\s+(([^\"]\\S+[^\"])|(\"(\\S+)\"))")
 	| `std.Success re:	usepat = re
 	| `std.Failure f:	std.fatal(1, "Failed to compile use pattern regex\n")
 	;;
@@ -91,7 +86,7 @@ const main = {args
 		mergeuse(optctx.args)
 		archive(optctx.args)
 	else
-		linkobj(optctx.args)
+		linkbin(optctx.args)
 	;;
 }
 
@@ -110,13 +105,13 @@ const getdeps = {path
 		| `std.Some ln:
 			match regex.exec(usepat, ln)
 			| `std.Some uses: 
-				if uses[3].len > 0
-					deps = std.slpush(deps, `Local std.sldup(uses[3]))
+				if uses[2].len > 0
+					deps = std.slpush(deps, `Lib std.sldup(uses[2]))
 				else
-					deps = std.slpush(deps, `Lib std.sldup(uses[4]))
+					deps = std.slpush(deps, `Local std.sldup(uses[4]))
 				;;
 			;;
-			std.slfree(ln)
+			/*std.slfree(ln)*/
 		| `std.None:
 			bio.close(f)
 			-> deps
@@ -141,19 +136,25 @@ const compile = {f
 		for d in deps
 			match d
 			| `Local dep:	compile(srcfile(dep))
-			| `Lib dep:	scrapelibs(dep)
+			| `Lib dep:	
+				scrapelibs(dep)
 			;;
 		;;
 		if !isfresh(f, usefile)
 			cmd = gencmd(opt_muse, f, [][:])
 			run(cmd)
-			std.slfree(cmd)
+			/*std.slfree(cmd)*/
 		;;
 		if !isfresh(f, obj)
 			cmd = gencmd(opt_mc, f, [][:])
 			run(cmd)
-			std.slfree(cmd)
+			/*std.slfree(cmd)*/
 		;;
+		for k in std.htkeys(libgraph)
+			std.put("\tkey=%s\n", k)
+		;;
+
+/*
 		std.slfree(usefile)
 		std.slfree(obj)
 		for d in deps
@@ -163,6 +164,7 @@ const compile = {f
 			;;
 		;;
 		std.slfree(deps)
+*/
 	elif hassuffix(f, ".s")
 		obj = swapsuffix(f, ".s", ".o")
 		if !isfresh(f, obj)
@@ -187,11 +189,94 @@ const archive = {fl
 	;;
 }
 
-const linkobj = {fl
-	for f in fl
-		std.put("linking %s\n", f)
+const linkbin = {srcfiles
+	var cmd
+	var obj
+
+	cmd = [][:]
+
+	if opt_binname.len == 0
+		opt_binname = "a.out"
 	;;
+	/* ld -o bin */
+	cmd = std.slpush(cmd, std.sldup(opt_ld))
+	cmd = std.slpush(cmd, std.sldup("-o"))
+	cmd = std.slpush(cmd, std.sldup(opt_binname))
+	/* [-T script] */
+	if opt_ldscript.len > 0
+		cmd = std.slpush(cmd, std.sldup("-T"))
+		cmd = std.slpush(cmd, std.sldup(opt_ldscript))
+	;;
+
+	/* input.o list.o... */
+	for f in srcfiles
+		if hassuffix(f, ".myr")
+			obj = swapsuffix(f, ".myr", ".o")
+		elif hassuffix(f, ".s")
+			obj = swapsuffix(f, ".s", ".o")
+		else
+			std.fatal(1, "unknown file type for %s\n", f)
+		;;
+		cmd = std.slpush(cmd, obj)
+	;;
+
+	/* -L incpath... */
+	cmd = std.slpush(cmd, std.fmt("-L%s%s", config.Instroot, "/lib/myr"))
+	for inc in opt_incpaths
+		cmd = std.slpush(cmd, std.fmt("-L%s", inc))
+	;;
+
+	/* -l lib... */
+	cmd = addlibs(cmd)
+
+	/* special for OSX: it warns if we don't add this */
+	if std.sleq(opt_sysname, "Darwin")
+		cmd = std.slpush(cmd, std.sldup("-macosx_version_min"));
+		cmd = std.slpush(cmd, std.sldup("10.6"));
+	;;
+
+	printl(cmd)
+	run(cmd)
+	/*
+	for c in cmd
+		std.slfree(c)
+	;;
+	std.slfree(cmd)
+	*/
 }
+
+const addlibs = {cmd
+	var looped : std.htab(byte[:], bool)#
+	var marked : std.htab(byte[:], bool)#
+	var libs
+	var head
+
+	libs = std.htkeys(libgraph)
+	looped = std.mkht(std.strhash, std.streq)
+	marked = std.mkht(std.strhash, std.streq)
+	head = cmd.len
+	for lib in libs
+		cmd = visit(cmd, head, libgraph, lib, looped, marked)
+	;;
+	-> cmd
+}
+
+const visit = {cmd, head, g, lib, looped, marked -> byte[:][:]
+	if std.hthas(looped, lib)
+		std.fatal(1, "cycle in library graph involving \"%s\"\n", lib)
+	elif std.hthas(marked, lib)
+		-> cmd
+	;;
+
+	std.htput(looped, lib, true)
+	for dep in std.htgetv(g, lib, [][:])
+		visit(cmd, head, g, dep, looped, marked)
+	;;
+	std.htdel(looped, lib)
+	std.htput(marked, lib, true)
+	-> std.slinsert(cmd, head, std.fmt("-l%s", lib))
+}
+
 
 const hassuffix = {f, suff
 	-> f.len >= suff.len && std.sleq(f[f.len - suff.len:], suff)
@@ -209,6 +294,55 @@ const srcfile = {f
 }
 
 const scrapelibs = {lib
+	var deps, d
+	var f
+	var done
+
+	if std.hthas(libgraph, lib)
+		->
+	;;
+
+	deps = [][:]
+	f = openlib(lib)
+	match bio.getc(f)
+	| `std.Some 'U': /* nothing */
+	| `std.Some _:	std.fatal(1, "library %s is not usefile", lib)
+	| `std.None:	std.fatal(1, "library %s is not usefile", lib)
+	;;
+/*	std.slfree(rdstr(f))*/
+	done = false
+	while !done
+		match bio.getc(f)
+		| `std.Some 'L':
+			d = rdstr(f)
+			deps = std.slpush(deps, d)
+		| `std.Some _:	done = true
+		| `std.None:	done = true
+		;;
+	;;
+	bio.close(f)
+	std.htput(libgraph, lib, deps)
+	for dep in deps
+		scrapelibs(dep)
+	;;
+}
+
+const openlib = {lib
+	var path
+
+	path = std.fmt("%s/%s/%s", config.Instroot, "/lib/myr", lib)
+	match  bio.open(path, bio.Rd)
+	| `std.Some file:
+		-> file
+	;;
+	for p in opt_incpaths
+		path = std.fmt("%s/%s/%s", config.Instroot, "/lib/myr", lib)
+		match  bio.open(path, bio.Rd)
+		| `std.Some file:
+			-> file
+		;;
+	;;
+	std.fatal(1, "could not find library %s\n", lib)
 }
 
 const isfresh = {input, output
@@ -263,3 +397,26 @@ const printl = {lst
 	std.put("\n")
 }
 
+const rdstr = {f
+	var len : uint32
+	var sl
+
+	match bio.getbe(f)
+	| `std.Some l:
+		len = l
+		sl = std.slalloc(len castto(std.size))
+	| `std.None:	std.die("string length not readable")
+	;;
+	bio.read(f, sl)
+	-> sl
+}
+
+const sysname = {n
+	var i
+	for i = 0; i < n.len; i++
+		if n[i] == 0
+			-> std.sldup(n[:i])
+		;;
+	;;
+	-> std.sldup(n)
+}

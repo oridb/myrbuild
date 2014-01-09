@@ -32,18 +32,23 @@ done
 
 OS=`uname`
 
+echo "pkg config = " >> config.myr
+echo "const Instroot = \"$prefix\"" >> config.myr
 echo export INST_ROOT=$prefix > config.mk
 case $OS in
     *Linux*)
         echo 'export SYS=linux' >> config.mk
+        echo 'const Sys = "Linux"' >> config.myr
         ;;
     *Darwin*)
         echo 'export SYS=osx' >> config.mk
+        echo 'const Sys = "OSX"' >> config.myr
         ;;
     *)
         echo 'Unknown architecture.'
         ;;
 esac
+echo ";;" >> config.myr
 
 cat << EOF
     Building with:
