@@ -1,0 +1,265 @@
+use std
+use regex
+use bio
+
+var opt_mc = "6m"
+var opt_muse = "muse"
+var opt_as = "as"
+var opt_ar = "ar"
+var opt_ld = "ld"
+
+var opt_arch = "x64"
+var opt_targ = "Linux"
+
+var opt_libname = ""
+var opt_binname = ""
+var opt_incpaths
+var opt_ldscript
+var opt_sysname
+
+var libgraph	: std.htab(byte[:], byte[:][:])#
+var compiled	: std.htab(byte[:], bool)#
+var loopdetect	: std.htab(byte[:], bool)#
+var sourcemap	: std.htab(byte[:], byte[:])#
+var usepat	: regex.regex#
+
+type dep = union
+	`Local	byte[:]
+	`Lib byte[:]
+;;
+
+const usage = {prog
+	std.put("%s [-h] [-I path] [-l lib] [-b bin] inputs...\n", prog);
+	std.put("\t-h\tprint this help\n");
+	std.put("\t-b bin\tBuild a binary called 'bin'\n");
+	std.put("\t-l lib\tBuild a library called 'name'\n");
+	std.put("\t-s script\tUse the linker script 'script' when linking\n");
+	std.put("\t-I path\tAdd 'path' to use search path\n");
+}
+
+const main = {args
+	var optctx
+	var utsname
+	var target
+
+	optctx = std.optinit("hb:l:s:I:C:A:M:L:R:", args)
+	while !std.optdone(optctx)
+		match std.optnext(optctx)
+		| ('b', arg): opt_binname = arg
+		| ('l', arg): opt_libname = arg
+		| ('s', arg): opt_ldscript = arg
+		| ('C', arg): opt_mc = arg
+		| ('A', arg): opt_as = arg
+		| ('M', arg): opt_muse = arg
+		| ('L', arg): opt_ld = arg
+		| ('R', arg): opt_ar = arg
+		| ('I', arg): opt_incpaths = std.slpush(opt_incpaths, arg)
+		| ('h', arg):
+			usage(args[0]);
+			std.exit(0);
+		;;
+	;;
+
+	if std.uname(&utsname) == 0
+		opt_sysname = std.sldup(utsname.system[:])
+	;;
+
+	if opt_libname.len > 0 && opt_binname.len > 0
+		std.fatal(1, "error: both lib %s and bin %s targets specified\n", \
+				opt_libname, opt_binname)
+	elif opt_libname.len > 0
+		target = opt_libname
+	elif opt_binname.len > 0
+		target = opt_binname
+	else
+		target = "a.out"
+	;;
+
+	libgraph = std.mkht(std.strhash, std.streq)
+	compiled = std.mkht(std.strhash, std.streq)
+	loopdetect = std.mkht(std.strhash, std.streq)
+	sourcemap = std.mkht(std.strhash, std.streq)
+	match regex.compile("^\\s*use\\s+((\"(\\S+)\")|(\\S+))")
+	| `std.Success re:	usepat = re
+	| `std.Failure f:	std.fatal(1, "Failed to compile use pattern regex\n")
+	;;
+
+	for f in optctx.args
+		compile(f)
+	;;
+	if opt_libname.len > 0
+		mergeuse(optctx.args)
+		archive(optctx.args)
+	else
+		linkobj(optctx.args)
+	;;
+}
+
+const getdeps = {path
+	var deps : dep[:]
+	var f
+
+	deps = [][:]
+	match bio.open(path, bio.Rd)
+	| `std.Some fd:	f = fd
+	| `std.None:	std.fatal(1, "could not open %s\n", path)
+	;;
+
+	while true
+		match bio.readln(f)
+		| `std.Some ln:
+			match regex.exec(usepat, ln)
+			| `std.Some uses: 
+				if uses[3].len > 0
+					deps = std.slpush(deps, `Local std.sldup(uses[3]))
+				else
+					deps = std.slpush(deps, `Lib std.sldup(uses[4]))
+				;;
+			;;
+			std.slfree(ln)
+		| `std.None:
+			bio.close(f)
+			-> deps
+		;;
+	;;
+}
+
+const compile = {f
+	var usefile, obj
+	var deps
+	var cmd
+
+	if std.hthas(compiled, f)
+		->
+	elif std.hthas(loopdetect, f)
+		std.fatal(1, "cycle in dependency graph containing %s\n", f)
+	;;
+	if hassuffix(f, ".myr")
+		usefile = swapsuffix(f, ".myr", ".use")
+		obj = swapsuffix(f, ".myr", ".o")
+		deps = getdeps(f)
+		for d in deps
+			match d
+			| `Local dep:	compile(srcfile(dep))
+			| `Lib dep:	scrapelibs(dep)
+			;;
+		;;
+		if !isfresh(f, usefile)
+			cmd = gencmd(opt_muse, f, [][:])
+			run(cmd)
+			std.slfree(cmd)
+		;;
+		if !isfresh(f, obj)
+			cmd = gencmd(opt_mc, f, [][:])
+			run(cmd)
+			std.slfree(cmd)
+		;;
+		std.slfree(usefile)
+		std.slfree(obj)
+		for d in deps
+			match d
+			| `Local str:	std.slfree(str)
+			| `Lib str:	std.slfree(str)
+			;;
+		;;
+		std.slfree(deps)
+	elif hassuffix(f, ".s")
+		obj = swapsuffix(f, ".s", ".o")
+		if !isfresh(f, obj)
+			cmd = gencmd(opt_as, f, ["-g", "-o", obj][:])
+		;;
+	else
+		std.fatal(1, "Unrecognized file type %s\n", f)
+	;;
+	std.htput(compiled, f, true)
+	std.htdel(loopdetect, f)
+}
+
+const mergeuse = {fl
+	for f in fl
+		std.put("merging uses for %s", f)
+	;;
+}
+
+const archive = {fl
+	for f in fl
+		std.put("archiving %s\n", f)
+	;;
+}
+
+const linkobj = {fl
+	for f in fl
+		std.put("linking %s\n", f)
+	;;
+}
+
+const hassuffix = {f, suff
+	-> f.len >= suff.len && std.sleq(f[f.len - suff.len:], suff)
+}
+
+const swapsuffix = {f, suff, newsuff
+	if hassuffix(f, suff)
+		f = f[:f.len - suff.len]
+	;;
+	-> std.fmt("%s%s", f, newsuff)
+}
+
+const srcfile = {f
+	-> swapsuffix(f, ".use", ".myr")
+}
+
+const scrapelibs = {lib
+}
+
+const isfresh = {input, output
+	-> false
+}
+
+const gencmd = {bin, file, extra
+	var cmd = [][:]
+
+	cmd = std.slpush(cmd, bin)
+	for inc in opt_incpaths
+		cmd = std.slpush(cmd, "-I")
+		cmd = std.slpush(cmd, inc)
+	;;
+	for e in extra
+		cmd = std.slpush(cmd, e)
+	;;
+	cmd = std.slpush(cmd, file)
+	-> cmd
+}
+
+const run = {cmd
+	var pid
+	var status
+
+	printl(cmd)
+	pid = std.fork()
+	if pid == -1
+		std.fatal(1, "could not fork command\n")
+	elif pid == 0
+		if std.execvp(cmd[0], cmd) < 0
+			std.fatal(1, "failed to exec %s\n", cmd[0])
+		;;
+	else
+		std.waitpid(pid, &status, 0)
+	;;
+	match std.waitstatus(status)
+	| `std.Waitexit estatus:
+		if estatus != 0
+			std.exit(estatus castto(int))
+		;;
+	| `std.Waitsig sig:
+		std.fatal(1, "%s exited with signal %i\n", cmd[0], sig)
+	;;
+}
+
+const printl = {lst
+	std.put("\t")
+	for l in lst
+		std.put("%s ", l)
+	;;
+	std.put("\n")
+}
+
