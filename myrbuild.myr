@@ -111,7 +111,7 @@ const getdeps = {path
 					deps = std.slpush(deps, `Local std.sldup(uses[4]))
 				;;
 			;;
-			/*std.slfree(ln)*/
+			std.slfree(ln)
 		| `std.None:
 			bio.close(f)
 			-> deps
@@ -143,28 +143,17 @@ const compile = {f
 		if !isfresh(f, usefile)
 			cmd = gencmd(opt_muse, f, [][:])
 			run(cmd)
-			/*std.slfree(cmd)*/
+			std.slfree(cmd)
 		;;
 		if !isfresh(f, obj)
 			cmd = gencmd(opt_mc, f, [][:])
 			run(cmd)
-			/*std.slfree(cmd)*/
-		;;
-		for k in std.htkeys(libgraph)
-			std.put("\tkey=%s\n", k)
+			std.slfree(cmd)
 		;;
 
-/*
 		std.slfree(usefile)
 		std.slfree(obj)
-		for d in deps
-			match d
-			| `Local str:	std.slfree(str)
-			| `Lib str:	std.slfree(str)
-			;;
-		;;
 		std.slfree(deps)
-*/
 	elif hassuffix(f, ".s")
 		obj = swapsuffix(f, ".s", ".o")
 		if !isfresh(f, obj)
@@ -194,7 +183,6 @@ const linkbin = {srcfiles
 	var obj
 
 	cmd = [][:]
-
 	if opt_binname.len == 0
 		opt_binname = "a.out"
 	;;
@@ -202,6 +190,7 @@ const linkbin = {srcfiles
 	cmd = std.slpush(cmd, std.sldup(opt_ld))
 	cmd = std.slpush(cmd, std.sldup("-o"))
 	cmd = std.slpush(cmd, std.sldup(opt_binname))
+
 	/* [-T script] */
 	if opt_ldscript.len > 0
 		cmd = std.slpush(cmd, std.sldup("-T"))
@@ -235,14 +224,11 @@ const linkbin = {srcfiles
 		cmd = std.slpush(cmd, std.sldup("10.6"));
 	;;
 
-	printl(cmd)
 	run(cmd)
-	/*
 	for c in cmd
 		std.slfree(c)
 	;;
 	std.slfree(cmd)
-	*/
 }
 
 const addlibs = {cmd
@@ -270,7 +256,7 @@ const visit = {cmd, head, g, lib, looped, marked -> byte[:][:]
 
 	std.htput(looped, lib, true)
 	for dep in std.htgetv(g, lib, [][:])
-		visit(cmd, head, g, dep, looped, marked)
+		cmd = visit(cmd, head, g, dep, looped, marked)
 	;;
 	std.htdel(looped, lib)
 	std.htput(marked, lib, true)
@@ -309,7 +295,7 @@ const scrapelibs = {lib
 	| `std.Some _:	std.fatal(1, "library %s is not usefile", lib)
 	| `std.None:	std.fatal(1, "library %s is not usefile", lib)
 	;;
-/*	std.slfree(rdstr(f))*/
+	std.slfree(rdstr(f))
 	done = false
 	while !done
 		match bio.getc(f)
