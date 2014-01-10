@@ -166,18 +166,6 @@ const compile = {f
 	std.htdel(loopdetect, f)
 }
 
-const mergeuse = {fl
-	for f in fl
-		std.put("merging uses for %s", f)
-	;;
-}
-
-const archive = {fl
-	for f in fl
-		std.put("archiving %s\n", f)
-	;;
-}
-
 const linkbin = {srcfiles
 	var cmd
 	var obj
@@ -225,11 +213,48 @@ const linkbin = {srcfiles
 	;;
 
 	run(cmd)
-	for c in cmd
-		std.slfree(c)
-	;;
-	std.slfree(cmd)
+	strlistfree(cmd)
 }
+
+const mergeuse = {files
+	var cmd
+
+	cmd = [][:]
+	cmd = std.slpush(cmd, std.sldup(opt_muse))
+	cmd = std.slpush(cmd, std.sldup("-mo"))
+	cmd = std.slpush(cmd, std.sldup(opt_libname))
+	for f in files
+		if hassuffix(f, ".myr")
+			cmd = std.slpush(cmd, swapsuffix(f, ".myr", ".use"))
+		elif !hassuffix(f, ".s")
+			std.fatal(1, "unknown file type for %s\n", f)
+		;;
+	;;
+	run(cmd)
+	strlistfree(cmd)
+}
+
+const archive = {files
+	var cmd
+	var obj
+
+	cmd = [][:]
+	cmd = std.slpush(cmd, std.sldup(opt_ar))
+	cmd = std.slpush(cmd, std.sldup("-rcs"))
+	cmd = std.slpush(cmd, std.fmt("lib%s.a", opt_libname))
+	for f in files
+		if hassuffix(f, ".myr")
+			obj = swapsuffix(f, ".myr", ".o")
+		elif hassuffix(f, ".s")
+			obj = swapsuffix(f, ".s", ".o")
+		else
+			std.fatal(1, "unknown file type for %s\n", f)
+		;;
+	;;
+	run(cmd)
+	strlistfree(cmd)
+}
+
 
 const addlibs = {cmd
 	var looped : std.htab(byte[:], bool)#
@@ -405,4 +430,11 @@ const sysname = {n
 		;;
 	;;
 	-> std.sldup(n)
+}
+
+const strlistfree = {sl
+	for s in sl
+		std.slfree(s)
+	;;
+	std.slfree(sl)
 }
