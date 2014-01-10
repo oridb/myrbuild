@@ -61,6 +61,10 @@ const main = {args
 		;;
 	;;
 
+	if optctx.args.len == 0
+		->
+	;;
+
 	if std.uname(&utsname) == 0
 		opt_sysname = sysname(utsname.system[:])
 	;;
@@ -135,7 +139,8 @@ const compile = {f
 		deps = getdeps(f)
 		for d in deps
 			match d
-			| `Local dep:	compile(srcfile(dep))
+			| `Local dep:
+				compile(srcfile(dep))
 			| `Lib dep:	
 				scrapelibs(dep)
 			;;
@@ -159,6 +164,7 @@ const compile = {f
 		if !isfresh(f, obj)
 			cmd = gencmd(opt_as, f, ["-g", "-o", obj][:])
 		;;
+		std.slfree(obj)
 	else
 		std.fatal(1, "Unrecognized file type %s\n", f)
 	;;
@@ -250,6 +256,7 @@ const archive = {files
 		else
 			std.fatal(1, "unknown file type for %s\n", f)
 		;;
+		cmd = std.slpush(cmd, obj)
 	;;
 	run(cmd)
 	strlistfree(cmd)
@@ -356,8 +363,18 @@ const openlib = {lib
 	std.fatal(1, "could not find library %s\n", lib)
 }
 
-const isfresh = {input, output
-	-> false
+const isfresh = {from, to
+	var stackit1 : byte[512]
+	var fromsb, tosb
+	var stackit2 : byte[512]
+
+	if std.stat(from, &fromsb) != 0
+		std.fatal(1, "could not stat %s", from)
+	;;
+	if std.stat(to, &tosb) != 0
+		-> false
+	;;
+	-> fromsb.mtime >= tosb.mtime
 }
 
 const gencmd = {bin, file, extra
