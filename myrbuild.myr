@@ -31,12 +31,12 @@ type dep = union
 ;;
 
 const usage = {prog
-	std.put("%s [-h] [-I path] [-l lib] [-b bin] inputs...\n", prog);
-	std.put("\t-h\tprint this help\n");
-	std.put("\t-b bin\tBuild a binary called 'bin'\n");
-	std.put("\t-l lib\tBuild a library called 'name'\n");
-	std.put("\t-s script\tUse the linker script 'script' when linking\n");
-	std.put("\t-I path\tAdd 'path' to use search path\n");
+	std.put("%s [-h] [-I path] [-l lib] [-b bin] inputs...\n", prog)
+	std.put("\t-h\tprint this help\n")
+	std.put("\t-b bin\tBuild a binary called 'bin'\n")
+	std.put("\t-l lib\tBuild a library called 'name'\n")
+	std.put("\t-s script\tUse the linker script 'script' when linking\n")
+	std.put("\t-I path\tAdd 'path' to use search path\n")
 }
 
 const main = {args
@@ -56,8 +56,8 @@ const main = {args
 		| ('R', arg): opt_ar = arg
 		| ('I', arg): opt_incpaths = std.slpush(opt_incpaths, arg)
 		| ('h', arg):
-			usage(args[0]);
-			std.exit(0);
+			usage(args[0])
+			std.exit(0)
 		;;
 	;;
 
@@ -214,8 +214,8 @@ const linkbin = {srcfiles
 
 	/* special for OSX: it warns if we don't add this */
 	if std.sleq(opt_sysname, "Darwin")
-		cmd = std.slpush(cmd, std.sldup("-macosx_version_min"));
-		cmd = std.slpush(cmd, std.sldup("10.6"));
+		cmd = std.slpush(cmd, std.sldup("-macosx_version_min"))
+		cmd = std.slpush(cmd, std.sldup("10.6"))
 	;;
 
 	run(cmd)
