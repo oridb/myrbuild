@@ -292,7 +292,7 @@ const visit = {cmd, head, g, lib, looped, marked -> byte[:][:]
 	;;
 	std.htdel(looped, lib)
 	std.htput(marked, lib, true)
-	-> std.slinsert(cmd, head, std.fmt("-l%s", lib))
+	-> std.slput(cmd, head, std.fmt("-l%s", lib))
 }
 
 
