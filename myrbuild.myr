@@ -37,6 +37,7 @@ const usage = {prog
 	std.put("\t-l lib\tBuild a library called 'name'\n")
 	std.put("\t-s script\tUse the linker script 'script' when linking\n")
 	std.put("\t-I path\tAdd 'path' to use search path\n")
+	std.exit(0)
 }
 
 const main = {args
@@ -49,15 +50,17 @@ const main = {args
 		| ('b', arg): opt_binname = arg
 		| ('l', arg): opt_libname = arg
 		| ('s', arg): opt_ldscript = arg
+		| ('I', arg): opt_incpaths = std.slpush(opt_incpaths, arg)
+		| ('h', arg): usage(args[0])
+		/*
+		internal undocumented args; used by compiler suite for
+		building with an uninstalled compiler.
+		*/
 		| ('C', arg): opt_mc = arg
 		| ('A', arg): opt_as = arg
 		| ('M', arg): opt_muse = arg
 		| ('L', arg): opt_ld = arg
 		| ('R', arg): opt_ar = arg
-		| ('I', arg): opt_incpaths = std.slpush(opt_incpaths, arg)
-		| ('h', arg):
-			usage(args[0])
-			std.exit(0)
 		;;
 	;;
 
