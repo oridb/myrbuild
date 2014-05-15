@@ -110,9 +110,9 @@ const getdeps = {path
 			match regex.exec(usepat, ln)
 			| `std.Some uses: 
 				if uses[2].len > 0
-					deps = std.slpush(deps, `Lib std.sldup(uses[2]))
+					deps = std.slpush(deps, `Local std.sldup(uses[2]))
 				else
-					deps = std.slpush(deps, `Local std.sldup(uses[4]))
+					deps = std.slpush(deps, `Lib std.sldup(uses[4]))
 				;;
 			;;
 			std.slfree(ln)
@@ -324,8 +324,8 @@ const scrapelibs = {lib
 	f = openlib(lib)
 	match bio.getc(f)
 	| `std.Some 'U': /* nothing */
-	| `std.Some _:	std.fatal(1, "library %s is not usefile", lib)
-	| `std.None:	std.fatal(1, "library %s is not usefile", lib)
+	| `std.Some _:	std.fatal(1, "library %s is not usefile\n", lib)
+	| `std.None:	std.fatal(1, "library %s is not usefile\n", lib)
 	;;
 	std.slfree(rdstr(f))
 	done = false
@@ -418,10 +418,13 @@ const run = {cmd
 }
 
 const printl = {lst
-	std.put("\t")
-	for l in lst
-		std.put("%s ", l)
-	;;
+	if lst.len > 0
+		std.put("\t")
+		std.put("%s\t", lst[0])
+		for l in lst[1:]
+			std.put("%s ", l)
+		;;
+	;;:
 	std.put("\n")
 }
 
