@@ -399,7 +399,7 @@ const run = {cmd
 	var pid
 	var status
 
-	printl(cmd)
+	printcmd(cmd)
 	pid = std.fork()
 	if pid == -1
 		std.fatal(1, "could not fork command\n")
@@ -420,7 +420,7 @@ const run = {cmd
 	;;
 }
 
-const printl = {lst
+const printcmd = {lst
 	if lst.len > 0
 		std.put("\t")
 		std.put("%s\t", lst[0])
