@@ -427,7 +427,7 @@ const printl = {lst
 		for l in lst[1:]
 			std.put("%s ", l)
 		;;
-	;;:
+	;;
 	std.put("\n")
 }
 
