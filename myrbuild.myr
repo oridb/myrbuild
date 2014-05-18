@@ -111,7 +111,12 @@ const getdeps = {path
 		match bio.readln(f)
 		| `std.Some ln:
 			match regex.exec(usepat, ln)
-			| `std.Some uses: 
+			| `std.Some uses:
+				/*
+				the regex pattern does some contortions to either grab
+				an unquoted path and put it into uses[4], or a quoted
+				path, and put it (minus the quotes) into uses[2]
+				*/
 				if uses[2].len > 0
 					deps = std.slpush(deps, `Local std.sldup(uses[2]))
 				else
