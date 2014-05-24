@@ -158,12 +158,7 @@ const compile = {f
 				scrapelibs(dep)
 			;;
 		;;
-		if !isfresh(f, usefile)
-			cmd = gencmd(opt_muse, f, [][:])
-			run(cmd)
-			std.slfree(cmd)
-		;;
-		if !isfresh(f, obj)
+		if !isfresh(f, obj) || !isfresh(f, usefile)
 			cmd = gencmd(opt_mc, f, [][:])
 			run(cmd)
 			std.slfree(cmd)
