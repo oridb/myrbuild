@@ -82,8 +82,8 @@ const main = {args
 	loopdetect = std.mkht(std.strhash, std.streq)
 	sourcemap = std.mkht(std.strhash, std.streq)
 	match regex.compile("^\\s*use\\s+(([^\"]\\S+[^\"])|(\"(\\S+)\"))")
-	| `std.Success re:	usepat = re
-	| `std.Failure f:	std.fatal(1, "Failed to compile use pattern regex\n")
+	| `std.Ok re:	usepat = re
+	| `std.Fail f:	std.fatal(1, "Failed to compile use pattern regex\n")
 	;;
 
 	for f in optctx.args
