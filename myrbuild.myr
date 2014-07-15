@@ -382,7 +382,11 @@ const isfresh = {from, to
 	if std.stat(to, &tosb) != 0
 		-> false
 	;;
-	-> fromsb.mtime <= tosb.mtime
+	if fromsb.mtime.sec == tosb.mtime.sec
+		-> fromsb.mtime.sec <= tosb.mtime.sec
+	else
+		-> fromsb.mtime.nsec <= tosb.mtime.nsec
+	;;
 }
 
 const gencmd = {bin, file, extra
