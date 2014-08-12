@@ -9,6 +9,7 @@ var opt_muse = "muse"
 var opt_as = "as"
 var opt_ar = "ar"
 var opt_ld = "ld"
+var opt_runtime = ""
 
 var opt_arch = "x64"
 var opt_targ = "Linux"
@@ -43,15 +44,24 @@ const usage = {prog
 const main = {args
 	var optctx
 	var utsname
+	var defaultrt
 
-	optctx = std.optinit("hb:l:s:I:C:A:M:L:R:", args)
+	defaultrt = true
+	optctx = std.optinit("hb:l:s:r:I:C:A:M:L:R:", args)
 	while !std.optdone(optctx)
 		match std.optnext(optctx)
+		| ('h', arg): usage(args[0])
 		| ('b', arg): opt_binname = arg
 		| ('l', arg): opt_libname = arg
 		| ('s', arg): opt_ldscript = arg
 		| ('I', arg): opt_incpaths = std.slpush(opt_incpaths, arg)
-		| ('h', arg): usage(args[0])
+		| ('r', arg):
+			defaultrt = false
+			if std.sleq(arg, "none")
+				opt_runtime = ""
+			else
+				opt_runtime = arg
+			;;
 		/*
 		internal undocumented args; used by compiler suite for
 		building with an uninstalled compiler.
@@ -62,6 +72,10 @@ const main = {args
 		| ('L', arg): opt_ld = arg
 		| ('R', arg): opt_ar = arg
 		;;
+	;;
+
+	if defaultrt
+		opt_runtime = std.fmt("%s/%s", config.Instroot, "/lib/myr/_myrrt.o")
 	;;
 
 	if optctx.args.len == 0
@@ -197,6 +211,10 @@ const linkbin = {srcfiles
 	if opt_ldscript.len > 0
 		cmd = std.slpush(cmd, std.sldup("-T"))
 		cmd = std.slpush(cmd, std.sldup(opt_ldscript))
+	;;
+
+	if opt_runtime.len > 0
+		cmd = std.slpush(cmd, opt_runtime)
 	;;
 
 	/* input.o list.o... */
