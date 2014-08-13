@@ -213,6 +213,7 @@ const linkbin = {srcfiles
 		cmd = std.slpush(cmd, std.sldup(opt_ldscript))
 	;;
 
+	/* runtime.o */
 	if opt_runtime.len > 0
 		cmd = std.slpush(cmd, opt_runtime)
 	;;
@@ -241,6 +242,7 @@ const linkbin = {srcfiles
 	/* special for OSX: it warns if we don't add this */
 	if std.sleq(opt_sysname, "Darwin")
 		cmd = std.slpush(cmd, std.sldup("-macosx_version_min"))
+		/* FIXME: What's the minimum version we actually support? */
 		cmd = std.slpush(cmd, std.sldup("10.6"))
 	;;
 
