@@ -400,7 +400,7 @@ const isfresh = {from, to
 	if std.stat(to, &tosb) != 0
 		-> false
 	;;
-	if fromsb.mtime.sec == tosb.mtime.sec
+	if fromsb.mtime.sec != tosb.mtime.sec
 		-> fromsb.mtime.sec <= tosb.mtime.sec
 	else
 		-> fromsb.mtime.nsec <= tosb.mtime.nsec
