@@ -32,7 +32,7 @@ done
 
 OS=`uname`
 
-echo "pkg config = " >> config.myr
+echo "pkg config = " > config.myr
 echo "const Instroot = \"$prefix\"" >> config.myr
 echo export INST_ROOT=$prefix > config.mk
 case $OS in
