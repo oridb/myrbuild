@@ -1,4 +1,5 @@
 use std
+use sys
 use regex
 use bio
 
@@ -82,7 +83,7 @@ const main = {args
 		->
 	;;
 
-	if std.uname(&utsname) == 0
+	if sys.uname(&utsname) == 0
 		opt_sysname = sysname(utsname.system[:])
 	;;
 
@@ -396,10 +397,10 @@ const isfresh = {from, to
 	var fromsb, tosb
 	var stackit2 : byte[512]
 
-	if std.stat(from, &fromsb) != 0
+	if sys.stat(from, &fromsb) != 0
 		std.fatal(1, "could not stat %s", from)
 	;;
-	if std.stat(to, &tosb) != 0
+	if sys.stat(to, &tosb) != 0
 		-> false
 	;;
 	if fromsb.mtime.sec != tosb.mtime.sec
