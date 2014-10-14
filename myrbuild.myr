@@ -232,10 +232,10 @@ const linkbin = {srcfiles
 	;;
 
 	/* -L incpath... */
-	cmd = std.slpush(cmd, std.fmt("-L%s%s", config.Instroot, "/lib/myr"))
 	for inc in opt_incpaths
 		cmd = std.slpush(cmd, std.fmt("-L%s", inc))
 	;;
+	cmd = std.slpush(cmd, std.fmt("-L%s%s", config.Instroot, "/lib/myr"))
 
 	/* -l lib... */
 	cmd = addlibs(cmd)
